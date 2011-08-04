@@ -8,7 +8,6 @@ import com.yammer.metrics.util.Utils;
 import org.codehaus.jackson.JsonEncoding;
 import org.codehaus.jackson.JsonFactory;
 import org.codehaus.jackson.JsonGenerator;
-import org.codehaus.jackson.map.JsonMappingException;
 import org.codehaus.jackson.map.ObjectMapper;
 
 import javax.servlet.ServletConfig;
@@ -23,6 +22,8 @@ import java.lang.Thread.State;
 import java.text.MessageFormat;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 import static com.yammer.metrics.core.VirtualMachineMetrics.*;
 
@@ -283,6 +284,13 @@ public class MetricsServlet extends HttpServlet {
         json.writeStartObject();
         {
 
+            json.writeFieldName("vm");
+            json.writeStartObject();
+            {
+                json.writeStringField("name", vmName());
+                json.writeStringField("version", vmVersion());
+            }
+            json.writeEndObject();
             json.writeFieldName("memory");
             json.writeStartObject();
             {
@@ -301,6 +309,7 @@ public class MetricsServlet extends HttpServlet {
 
             json.writeNumberField("daemon_thread_count", daemonThreadCount());
             json.writeNumberField("thread_count", threadCount());
+            json.writeNumberField("current_time", System.currentTimeMillis());
             json.writeNumberField("uptime", uptime());
             json.writeNumberField("fd_usage", fileDescriptorUsage());
 
@@ -313,28 +322,19 @@ public class MetricsServlet extends HttpServlet {
             }
             json.writeEndObject();
 
-            json.writeFieldName("gc");
+            json.writeFieldName("garbage-collectors");
             json.writeStartObject();
             {
-                json.writeFieldName("duration");
-                json.writeStartObject();
-                {
-                    for (Entry<String, TimerMetric> entry : gcDurations().entrySet()) {
-                        json.writeFieldName(entry.getKey());
-                        writeTimer(json, entry.getValue(), showFullSamples);
+                for (Entry<String, GarbageCollector> entry : garbageCollectors().entrySet()) {
+                    json.writeFieldName(entry.getKey());
+                    json.writeStartObject();
+                    {
+                        final GarbageCollector gc = entry.getValue();
+                        json.writeNumberField("runs", gc.getRuns());
+                        json.writeNumberField("time", gc.getTime(TimeUnit.MILLISECONDS));
                     }
+                    json.writeEndObject();
                 }
-                json.writeEndObject();
-
-                json.writeFieldName("throughput");
-                json.writeStartObject();
-                {
-                    for (Entry<String, MeterMetric> entry : gcThroughputs().entrySet()) {
-                        json.writeFieldName(entry.getKey());
-                        writeMeter(json, entry.getValue());
-                    }
-                }
-                json.writeEndObject();
             }
             json.writeEndObject();
 
